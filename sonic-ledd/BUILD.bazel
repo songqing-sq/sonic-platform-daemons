@@ -1,0 +1,21 @@
+load("@rules_python//python:packaging.bzl", "py_wheel")
+load("@tar.bzl//:tar.bzl", "tar")
+
+package(default_visibility = ["//visibility:public"])
+
+# setup.py: packages=[], scripts=['scripts/ledd']
+py_wheel(
+    name = "wheel",
+    distribution = "sonic-ledd",
+    version = "1.1",
+    data_files = {"scripts/ledd": "scripts/ledd"},
+    strip_path_prefixes = ["src/sonic-platform-daemons/sonic-ledd/"],
+)
+
+tar(
+    name = "install",
+    srcs = ["scripts/ledd"],
+    mtree = [
+        "./usr/local/bin/ledd uid=0 gid=0 mode=0755 type=file content=$(location scripts/ledd)",
+    ],
+)

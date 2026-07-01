@@ -1,0 +1,35 @@
+load("@aspect_rules_py//py:defs.bzl", "py_library")
+load("@rules_python//python:packaging.bzl", "py_wheel")
+load("@tar.bzl//:tar.bzl", "tar")
+
+package(default_visibility = ["//visibility:public"])
+
+# setup.py: packages=['tests'], scripts=['scripts/thermalctld']
+_TESTS_SRCS = glob(["tests/*.py"])
+
+py_library(
+    name = "sources",
+    srcs = _TESTS_SRCS,
+    imports = ["."],
+)
+
+py_wheel(
+    name = "wheel",
+    distribution = "sonic-thermalctld",
+    version = "1.0",
+    data_files = {"scripts/thermalctld": "scripts/thermalctld"},
+    strip_path_prefixes = ["src/sonic-platform-daemons/sonic-thermalctld/"],
+    deps = [":sources"],
+)
+
+tar(
+    name = "install",
+    srcs = _TESTS_SRCS + ["scripts/thermalctld"],
+    mtree = [
+        "./usr/lib/python3/dist-packages/" + f +
+        " uid=0 gid=0 mode=0644 type=file content=$(location " + f + ")"
+        for f in _TESTS_SRCS
+    ] + [
+        "./usr/local/bin/thermalctld uid=0 gid=0 mode=0755 type=file content=$(location scripts/thermalctld)",
+    ],
+)

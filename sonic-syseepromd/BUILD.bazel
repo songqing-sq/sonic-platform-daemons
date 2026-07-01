@@ -1,0 +1,21 @@
+load("@rules_python//python:packaging.bzl", "py_wheel")
+load("@tar.bzl//:tar.bzl", "tar")
+
+package(default_visibility = ["//visibility:public"])
+
+# setup.py: packages=[], scripts=['scripts/syseepromd']
+py_wheel(
+    name = "wheel",
+    distribution = "sonic-syseepromd",
+    version = "1.0",
+    data_files = {"scripts/syseepromd": "scripts/syseepromd"},
+    strip_path_prefixes = ["src/sonic-platform-daemons/sonic-syseepromd/"],
+)
+
+tar(
+    name = "install",
+    srcs = ["scripts/syseepromd"],
+    mtree = [
+        "./usr/local/bin/syseepromd uid=0 gid=0 mode=0755 type=file content=$(location scripts/syseepromd)",
+    ],
+)

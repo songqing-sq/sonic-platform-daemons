@@ -1,0 +1,96 @@
+load("@aspect_rules_py//py:defs.bzl", "py_library")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("@rules_python//python:packaging.bzl", "py_wheel")
+load("@tar.bzl//:tar.bzl", "tar")
+
+package(default_visibility = ["//visibility:public"])
+
+# setup.py: packages=find_packages(), entry_points={'console_scripts': ['ycabled = ycable.ycable:main']}
+# install_requires=['sonic-py-common', 'grpcio', 'protobuf>=5.26.0'] (enum34 is py2-only no-op)
+# Proto generation mirrors setup.py's GrpcTool command.
+
+genrule(
+    name = "linkmgr_grpc_driver_proto_gen",
+    srcs = ["proto/proto_out/linkmgr_grpc_driver.proto"],
+    outs = [
+        "proto_out/linkmgr_grpc_driver_pb2.py",
+        "proto_out/linkmgr_grpc_driver_pb2_grpc.py",
+    ],
+    cmd = """
+        PROTO_FILE=$(execpath proto/proto_out/linkmgr_grpc_driver.proto)
+        PROTO_INCLUDE=$$(dirname $$(dirname $$PROTO_FILE))
+        $(execpath @protobuf//:protoc) \
+            --plugin=protoc-gen-grpc_python=$(execpath @com_github_grpc_grpc//src/compiler:grpc_python_plugin) \
+            --proto_path=$$PROTO_INCLUDE \
+            --python_out=$(RULEDIR) \
+            --grpc_python_out=$(RULEDIR) \
+            $$PROTO_FILE
+    """,
+    tools = [
+        "@com_github_grpc_grpc//src/compiler:grpc_python_plugin",
+        "@protobuf//:protoc",
+    ],
+)
+
+_PACKAGE_SRCS = [
+    "proto_out/__init__.py",
+    "ycable/__init__.py",
+    "ycable/ycable.py",
+    "ycable/ycable_utilities/__init__.py",
+    "ycable/ycable_utilities/y_cable_helper.py",
+    "ycable/ycable_utilities/y_cable_table_helper.py",
+] + glob(["tests/*.py"])
+
+_GENERATED_SRCS = [
+    "proto_out/linkmgr_grpc_driver_pb2.py",
+    "proto_out/linkmgr_grpc_driver_pb2_grpc.py",
+]
+
+py_library(
+    name = "sources",
+    srcs = _PACKAGE_SRCS + _GENERATED_SRCS,
+    imports = ["."],
+)
+
+write_file(
+    name = "ycabled_script",
+    out = "ycabled_bin",
+    content = [
+        "#!/usr/bin/python3",
+        "import re, sys",
+        "from ycable.ycable import main",
+        "if __name__ == '__main__':",
+        "    sys.argv[0] = re.sub(r'(-script\\.pyw|\\.exe)?$', '', sys.argv[0])",
+        "    sys.exit(main())",
+    ],
+)
+
+py_wheel(
+    name = "wheel",
+    distribution = "sonic-ycabled",
+    version = "1.0",
+    requires = [
+        "sonic-py-common",
+        "grpcio",
+        "protobuf>=5.26.0",
+    ],
+    entry_points = {"console_scripts": ["ycabled = ycable.ycable:main"]},
+    strip_path_prefixes = ["src/sonic-platform-daemons/sonic-ycabled/"],
+    deps = [":sources"],
+)
+
+_ALL_SRCS = _PACKAGE_SRCS + _GENERATED_SRCS
+
+_PACKAGE_MTREE = [
+    "./usr/lib/python3/dist-packages/" + f +
+    " uid=0 gid=0 mode=0644 type=file content=$(location " + f + ")"
+    for f in _ALL_SRCS
+]
+
+tar(
+    name = "install",
+    srcs = _ALL_SRCS + [":ycabled_script"],
+    mtree = _PACKAGE_MTREE + [
+        "./usr/local/bin/ycabled uid=0 gid=0 mode=0755 type=file content=$(location :ycabled_script)",
+    ],
+)

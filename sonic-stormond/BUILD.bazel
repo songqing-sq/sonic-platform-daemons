@@ -1,0 +1,25 @@
+load("@rules_python//python:packaging.bzl", "py_wheel")
+load("@tar.bzl//:tar.bzl", "tar")
+
+package(default_visibility = ["//visibility:public"])
+
+# setup.py: packages=[], scripts=['scripts/stormond'], install_requires=['enum34','sonic-py-common']
+py_wheel(
+    name = "wheel",
+    distribution = "sonic-stormond",
+    version = "1.0",
+    requires = [
+        "enum34",
+        "sonic-py-common",
+    ],
+    data_files = {"scripts/stormond": "scripts/stormond"},
+    strip_path_prefixes = ["src/sonic-platform-daemons/sonic-stormond/"],
+)
+
+tar(
+    name = "install",
+    srcs = ["scripts/stormond"],
+    mtree = [
+        "./usr/local/bin/stormond uid=0 gid=0 mode=0755 type=file content=$(location scripts/stormond)",
+    ],
+)

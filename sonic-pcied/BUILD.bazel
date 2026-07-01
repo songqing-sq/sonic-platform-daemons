@@ -1,0 +1,22 @@
+load("@rules_python//python:packaging.bzl", "py_wheel")
+load("@tar.bzl//:tar.bzl", "tar")
+
+package(default_visibility = ["//visibility:public"])
+
+# setup.py: packages=[], scripts=['scripts/pcied'], install_requires=['sonic-py-common']
+py_wheel(
+    name = "wheel",
+    distribution = "sonic-pcied",
+    version = "1.0",
+    requires = ["sonic-py-common"],
+    data_files = {"scripts/pcied": "scripts/pcied"},
+    strip_path_prefixes = ["src/sonic-platform-daemons/sonic-pcied/"],
+)
+
+tar(
+    name = "install",
+    srcs = ["scripts/pcied"],
+    mtree = [
+        "./usr/local/bin/pcied uid=0 gid=0 mode=0755 type=file content=$(location scripts/pcied)",
+    ],
+)

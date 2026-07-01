@@ -1,0 +1,54 @@
+load("@aspect_rules_py//py:defs.bzl", "py_library")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("@rules_python//python:packaging.bzl", "py_wheel")
+load("@tar.bzl//:tar.bzl", "tar")
+
+package(default_visibility = ["//visibility:public"])
+
+# setup.py: packages=find_packages(), entry_points={'console_scripts': ['xcvrd = xcvrd.xcvrd:main']}
+# install_requires=['sonic-py-common'] (enum34 is py2-only no-op)
+# find_packages() picks up both xcvrd/ and tests/
+_PACKAGE_SRCS = glob(["xcvrd/**/*.py", "tests/*.py"])
+
+py_library(
+    name = "sources",
+    srcs = _PACKAGE_SRCS,
+    imports = ["."],
+)
+
+write_file(
+    name = "xcvrd_script",
+    out = "xcvrd_bin",
+    content = [
+        "#!/usr/bin/python3",
+        "import re, sys",
+        "from xcvrd.xcvrd import main",
+        "if __name__ == '__main__':",
+        "    sys.argv[0] = re.sub(r'(-script\\.pyw|\\.exe)?$', '', sys.argv[0])",
+        "    sys.exit(main())",
+    ],
+)
+
+py_wheel(
+    name = "wheel",
+    distribution = "sonic-xcvrd",
+    version = "1.0",
+    requires = ["sonic-py-common"],
+    entry_points = {"console_scripts": ["xcvrd = xcvrd.xcvrd:main"]},
+    strip_path_prefixes = ["src/sonic-platform-daemons/sonic-xcvrd/"],
+    deps = [":sources"],
+)
+
+_PACKAGE_MTREE = [
+    "./usr/lib/python3/dist-packages/" + f +
+    " uid=0 gid=0 mode=0644 type=file content=$(location " + f + ")"
+    for f in _PACKAGE_SRCS
+]
+
+tar(
+    name = "install",
+    srcs = _PACKAGE_SRCS + [":xcvrd_script"],
+    mtree = _PACKAGE_MTREE + [
+        "./usr/local/bin/xcvrd uid=0 gid=0 mode=0755 type=file content=$(location :xcvrd_script)",
+    ],
+)

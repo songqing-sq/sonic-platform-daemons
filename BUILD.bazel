@@ -1,0 +1,2 @@
+# Umbrella module for the SONiC platform daemons. Each daemon lives under
+# sonic-<name>/ and exposes :sources / :wheel / :install targets.
